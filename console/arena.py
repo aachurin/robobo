@@ -100,8 +100,7 @@ def run_arena(max_force, type, *, loop):
     elif state == "arena/game/sleeping":
         loop.click("arena/game/sleeping_back", timeout=1)
     elif state == "arena/game/finished":
-        if loop.click(["arena/game/close", "arena/game/close2"], timeout=1):
-            return
+        return close_arena()
     loop.retry()
 
 
@@ -116,6 +115,14 @@ def get_arena_state(timeout=...):
         "arena/game/defeat",
         "arena/game/sleeping"
     ), timeout=timeout)
+
+
+@resample_loop(logger=logger)
+def close_arena(loop):
+    state = get_arena_state()
+    if state == "arena/game/finished":
+        loop.click(["arena/game/close", "arena/game/close2"], timeout=1)
+        loop.retry()
 
 
 @resample_loop(logger=logger)
