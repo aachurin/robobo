@@ -4,12 +4,47 @@ from console.config import config
 from console.navigation import navigation
 
 
-__all__ = ("start_arena",)
+__all__ = (
+    "start_arena",
+    "set_arena_type",
+    "set_arena_max_force",
+    "set_arena_kind"
+)
 
 
 logger = logging.getLogger(__name__)
 config.add_option("arena:max-force", type=int, min_value=0, default=250000)
-config.add_option("arena:arena-type", type=int, choices=(10, 15), default=10)
+config.add_option("arena:type", choices=(10, 15), default=10)
+config.add_option("arena:kind", choices=(None, "food", "ticket"), default=None)
+
+
+def set_arena_type(value):
+    """Set arena type (10 or 15).
+
+    Examples:
+        set_arena_type(10)
+        set_arena_type(15)
+    """
+    config.set("arena:type", value)
+
+
+def set_arena_max_force(value):
+    """Set max enemy force.
+
+    Examples:
+        set_arena_max_force(3000000)
+    """
+    config.set("arena:max-force", value)
+
+
+def set_arena_kind(value):
+    """Set arena kind ("food", "ticket" or None).
+    Examples:
+        set_arena_kind("food")
+        set_arena_kind("ticket")
+        set_arena_kind(None)
+    """
+    config.set("arena:kind", value)
 
 
 ARENA10_POS = (
@@ -26,27 +61,31 @@ ARENA10_POS = (
 )
 
 
-def start_arena(count=1, kind=None, max_force=None, arena_type=None):
+def start_arena(count=1, kind=None, max_force=None, type=None):
+    """Start game.
+    `kind`, `max_force` and `type` is used to override default behavior.
+    `count` - how many times to start the game
+    """
     for _ in range(count):
-        start_arena_once(kind=kind, max_force=max_force, arena_type=arena_type)
+        start_arena_once(kind=kind, max_force=max_force, type=type)
 
 
-def start_arena_once(kind=None, max_force=None, arena_type=None):
+def start_arena_once(kind=None, max_force=None, type=None):
     assert kind in (None, "food", "ticket")
     goto_arena(kind)
-    run_arena(max_force=max_force, arena_type=arena_type)
+    run_arena(max_force=max_force, type=type)
 
 
 @resample_loop(min_timeout=1, logger=logger)
-def run_arena(max_force, arena_type, *, loop):
+def run_arena(max_force, type, *, loop):
     if max_force is None:
         max_force = config.get("arena:max-force")
-    if arena_type is None:
-        arena_type = config.get("arena:arena-type")
+    if type is None:
+        type = config.get("arena:type")
 
     state = get_arena_state()
     if state == "arena/game/active":
-        choose_enemy_and_attack(max_force, arena_type)
+        choose_enemy_and_attack(max_force, type)
         # start search and run bu
     elif state == "arena/game/waiting.next":
         logger.info("waiting for next stage", extra={"rate": 1/5})
@@ -80,8 +119,8 @@ def get_arena_state(timeout=...):
 
 
 @resample_loop(logger=logger)
-def choose_enemy_and_attack(max_force, arena_type, *, loop):
-    if arena_type == 10:
+def choose_enemy_and_attack(max_force, type, *, loop):
+    if type == 10:
         positions = ARENA10_POS
     else:
         positions = ARENA15_POS
@@ -150,6 +189,7 @@ def goto_arena(kind=None, *, loop):
     if loc != "arena":
         loop.retry()
 
+    kind = kind or config.get("arena:kind")
     if kind is not None:
         choose_arena_mode(kind)
 

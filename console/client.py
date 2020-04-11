@@ -213,4 +213,3 @@ def set_client_click_timeout(value):
 
 def set_client_move_timeout(value):
     config.set("client:move-timeout", value)
-
