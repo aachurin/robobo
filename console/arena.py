@@ -82,7 +82,6 @@ def run_arena(max_force, type, *, loop):
         max_force = config.get("arena:max-force")
     if type is None:
         type = config.get("arena:type")
-
     state = get_arena_state()
     if state == "arena/game/active":
         choose_enemy_and_attack(max_force, type)
@@ -117,11 +116,12 @@ def get_arena_state(timeout=...):
     ), timeout=timeout)
 
 
-@resample_loop(logger=logger)
+@resample_loop(min_timeout=1, logger=logger)
 def close_arena(loop):
+    logger.info("closing arena", extra={"rate": 1})
     state = get_arena_state()
     if state == "arena/game/finished":
-        loop.click(["arena/game/close", "arena/game/close2"], timeout=1)
+        loop.click(["arena/game/close", "arena/game/close2"], timeout=2)
         loop.retry()
 
 
