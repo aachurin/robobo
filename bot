@@ -1,0 +1,8 @@
+#!/bin/bash
+
+code=42
+while [ $code -eq 42 ];
+do
+    PYTHONSTARTUP=console/startup.py python3 -B -q
+    code=$?
+done;
