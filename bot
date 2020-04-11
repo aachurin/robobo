@@ -3,6 +3,6 @@
 code=42
 while [ $code -eq 42 ];
 do
-    PYTHONSTARTUP=console/startup.py python3.8 -B -q
+    PYTHONSTARTUP=console/startup.py python3.6 -B -q
     code=$?
 done;

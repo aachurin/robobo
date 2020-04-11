@@ -110,7 +110,7 @@ def execute_process(args):
                             stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT,
                             close_fds=True,
-                            text=True)
+                            encoding="utf-8")
 
 
 def execute_server():
