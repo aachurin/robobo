@@ -1,4 +1,3 @@
-import time
 import logging
 from console.utils import wait, find_all, click_mouse, reshaped_sample, resample_loop
 from console.config import config
@@ -93,16 +92,13 @@ def run_arena(max_force, type, *, loop):
     elif state == "arena/game/waiting.finish":
         logger.info("waiting for arena finished", extra={"rate": 1/5})
         loop.retry(False)
-    elif state == "arena/game/victory":
-        loop.click("arena/game/back", timeout=1)
-    elif state == "arena/game/defeat":
-        loop.click("arena/game/back", timeout=1)
+    elif state in ("arena/game/victory", "arena/game/defeat"):
+        loop.click_and_check("arena/game/back", timeout=2)
     elif state == "arena/game/sleeping":
-        loop.click("arena/game/sleeping_back", timeout=1)
+        loop.click_and_check("arena/game/sleeping_back", timeout=2)
     elif state == "arena/game/finished":
-        loop.click(["arena/game/close", "arena/game/close2"], timeout=2)
-        if loop.wait("arena/check"):
-            return
+        loop.click_and_check(["arena/game/close", "arena/game/close2"], timeout=2)
+        return
     loop.retry()
 
 
@@ -156,8 +152,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         enemy = sorted(forces1 + forces2)[0]
     logger.info("select enemy with force %d", enemy[0])
     click_mouse(*enemy[1])
-    loop.wait("arena/game/attack").click()
-    loop.wait_while("arena/game/attack")
+    loop.click_and_check("arena/game/attack")
 
 
 def get_enemy_force(sample=None, convert=int, threshold=None):
@@ -181,7 +176,7 @@ def goto_arena(kind=None, *, loop):
         loop.retry(False)
 
     if loop.find("arena/dialog/opened"):
-        loop.click("arena/dialog/approve")
+        loop.click_and_check("arena/dialog/approve", timeout=2)
         loop.retry()
 
     loc = navigation.get_loc()
@@ -205,15 +200,13 @@ def goto_arena(kind=None, *, loop):
             loop.retry()
 
         if kind == "ticket" and mode != "arena/ticket/check":
-            loop.click("arena/food/ticket")
+            loop.click("arena/food/ticket", timeout=2)
             loop.retry()
 
         elif kind == "food" and mode != "arena/food/check":
-            loop.click("arena/ticket/food")
+            loop.click("arena/ticket/food", timeout=2)
             loop.retry()
 
-    loop.wait([
-        "arena/start"
-    ]).click()
+    loop.click_and_check("arena/start", timeout=2)
 
     loop.retry()

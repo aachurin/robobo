@@ -208,8 +208,15 @@ def find_all(target, logger=None, sample=None, threshold=None):
     return [x.set_logger(logger) for x in templates[target].find_all(sample=sample, threshold=threshold)]
 
 
-def click(targets, timeout=0, logger=None):
-    return wait(targets, logger=logger, timeout=timeout).click()
+def click(targets, timeout=..., logger=None):
+    return wait(targets, timeout=timeout, logger=logger).click()
+
+
+def click_and_check(targets, timeout=..., check_timeout=None, logger=None):
+    if wait(targets, timeout=timeout, logger=logger).click():
+        check_timeout = check_timeout or timeout
+        return wait_while(targets, timeout=check_timeout, logger=logger)
+    return False
 
 
 click_mouse = client.click
@@ -268,8 +275,11 @@ class LoopObj:
     def find_all(self, *args, **kwargs):
         return find_all(*args, **kwargs, logger=self._logger)
 
-    def click(self,  *args, **kwargs):
+    def click(self, *args, **kwargs):
         return click(*args, **kwargs, logger=self._logger)
+
+    def click_and_check(self, *args, **kwargs):
+        return click_and_check(*args, **kwargs, logger=self._logger)
 
     @staticmethod
     def retry(log_retry=True):
