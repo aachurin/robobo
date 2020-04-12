@@ -1,3 +1,4 @@
+import time
 import logging
 from console.utils import wait, find_all, click_mouse, reshaped_sample, resample_loop
 from console.config import config
@@ -99,7 +100,9 @@ def run_arena(max_force, type, *, loop):
     elif state == "arena/game/sleeping":
         loop.click("arena/game/sleeping_back", timeout=1)
     elif state == "arena/game/finished":
-        return close_arena()
+        loop.click(["arena/game/close", "arena/game/close2"], timeout=2)
+        if loop.wait("arena/check"):
+            return
     loop.retry()
 
 
@@ -116,16 +119,7 @@ def get_arena_state(timeout=...):
     ), timeout=timeout)
 
 
-@resample_loop(min_timeout=1, logger=logger)
-def close_arena(loop):
-    logger.info("closing arena", extra={"rate": 1})
-    state = get_arena_state()
-    if state == "arena/game/finished":
-        loop.click(["arena/game/close", "arena/game/close2"], timeout=2)
-        loop.retry()
-
-
-@resample_loop(logger=logger)
+@resample_loop(min_timeout=0.5, logger=logger)
 def choose_enemy_and_attack(max_force, type, *, loop):
     if type == 10:
         positions = ARENA10_POS
@@ -137,10 +131,14 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     forces = forces1
 
     for num, pos in enumerate(positions, 1):
+        if get_arena_state(1) != "arena/game/active":
+            return False
         click_mouse(*pos)
+        loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=2.):
             logger.info("enemy %d - looks like it's me", num)
             forces = forces2
+            continue
         elif loop.find("arena/game/can_attack"):
             force = get_enemy_force()
             logger.info("enemy %d - force %d", num, force)
@@ -148,8 +146,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         else:
             logger.info("enemy %d - could not attack", num)
         click_mouse(15, 15)
-        if not loop.wait("arena/game/active"):
-            return False
+        loop.wait_while("arena/game/attack", timeout=2.)
 
     forces1 = sorted(forces1)
     forces2 = sorted(forces2)
@@ -159,17 +156,19 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         enemy = sorted(forces1 + forces2)[0]
     logger.info("select enemy with force %d", enemy[0])
     click_mouse(*enemy[1])
-    return loop.wait(["arena/game/attack"]).click()
+    loop.wait("arena/game/attack").click()
+    loop.wait_while("arena/game/attack")
 
 
-def get_enemy_force():
-    sample = reshaped_sample(left=0.5, top=0.3, bottom=0.4, right=0.2)
+def get_enemy_force(sample=None, convert=int, threshold=None):
+    sample = reshaped_sample(left=0.5, top=0.3, bottom=0.4, right=0, sample=sample)
+    threshold = threshold or 0.85
     digits = "0123456789"
     nums = []
     for dig in digits:
-        nums += [(x.left, dig) for x in find_all("arena/digits/" + dig, sample=sample)]
+        nums += [(x.left, dig) for x in find_all("arena/digits/" + dig, sample=sample, threshold=threshold)]
     value = "".join(x[1] for x in sorted(nums))
-    return int(value)
+    return convert(value)
 
 
 @resample_loop(min_timeout=1, logger=logger)
@@ -198,33 +197,23 @@ def goto_arena(kind=None, *, loop):
 
     kind = kind or config.get("arena:kind")
     if kind is not None:
-        choose_arena_mode(kind)
+        mode = loop.find([
+            "arena/food/check",
+            "arena/ticket/check"
+        ])
+        if not mode:
+            loop.retry()
+
+        if kind == "ticket" and mode != "arena/ticket/check":
+            loop.click("arena/food/ticket")
+            loop.retry()
+
+        elif kind == "food" and mode != "arena/food/check":
+            loop.click("arena/ticket/food")
+            loop.retry()
 
     loop.wait([
         "arena/start"
     ]).click()
-
-    loop.retry()
-
-
-@resample_loop(min_timeout=1.)
-def choose_arena_mode(kind, *, loop):
-    assert kind in ("food", "ticket")
-    mode = loop.find([
-        "arena/food/check",
-        "arena/ticket/check"
-    ])
-
-    if not mode:
-        loop.retry()
-
-    if ((kind == "ticket" and mode == "arena/ticket/check") or
-            (kind == "food" and mode == "arena/food/check")):
-        return
-
-    if kind == "ticket":
-        loop.click("arena/food/ticket")
-    elif kind == "food":
-        loop.click("arena/ticket/food")
 
     loop.retry()

@@ -19,38 +19,24 @@ class Match:
 
     logger = None
 
-    def __init__(self, name, pos, dim):
+    def __init__(self, name, left, top, width, height):
         self.name = name
-        self.pos = pos
-        self.dim = dim
+        self.left = left
+        self.top = top
+        self.width = width
+        self.height = height
 
     def set_logger(self, logger):
         self.logger = logger
         return self
 
     @property
-    def left(self):
-        return self.pos[0]
-
-    @property
     def right(self):
-        return self.pos[0] + self.dim[0] - 1
-
-    @property
-    def top(self):
-        return self.pos[1]
+        return self.left + self.width - 1
 
     @property
     def bottom(self):
-        return self.pos[1] + self.dim[1] - 1
-
-    @property
-    def width(self):
-        return self.dim[0]
-
-    @property
-    def height(self):
-        return self.dim[1]
+        return self.top + self.height - 1
 
     def click(self):
         x = self.left + self.width // 2
@@ -124,19 +110,33 @@ class Template:
         self.name = name
         self.img = img
 
-    def find(self, sample=None, threshold=settings.IMAGE_SEARCH_THESHOLD):
+    def find(self, sample=None, threshold=None):
+        threshold = threshold or settings.IMAGE_SEARCH_THESHOLD
         matches = self.find_all(sample=sample, threshold=threshold)
         if matches:
             return matches[0]
 
-    def find_all(self, sample=None, threshold=settings.IMAGE_SEARCH_THESHOLD):
+    def find_all(self, sample=None, threshold=None):
+        threshold = threshold or settings.IMAGE_SEARCH_THESHOLD
         if sample is None:
             sample = client.get_sample()
         res = cv2.matchTemplate(sample, self.img, cv2.TM_CCOEFF_NORMED)
         loc = np.where(res >= threshold)
-        matches = list(zip(*loc[::-1]))
-        dim = self.img.shape[::-1]
-        return [Match(self.name, match, dim) for match in matches]
+        return self.without_intersections(zip(*loc[::-1]))
+
+    def without_intersections(self, matches):
+        width, height = self.img.shape[::-1]
+        width23 = width * 2 / 3
+        height23 = height * 2 / 3
+        filtered = []
+        for left, top in matches:
+            for match in filtered:
+                if ((match.left - width23) < left < (match.left + width23) and
+                        (match.top - height23) < top < (match.top + height23)):
+                    break
+            else:
+                filtered.append(Match(self.name, left, top, width, height))
+        return filtered
 
 
 class Templates(dict):
@@ -158,6 +158,7 @@ def wait(targets, timeout=..., logger=None):
         targets = (targets,)
     if timeout is ...:
         timeout = config.get("utils:default-wait-timeout")
+    target_names = ", ".join(targets)
     tm = time.time()
     while 1:
         for t in targets:
@@ -166,21 +167,45 @@ def wait(targets, timeout=..., logger=None):
                 return match.set_logger(logger)
         if timeout is not None and (time.time() - tm) > timeout:
             return NoMatch(targets).set_logger(logger)
+        if logger and tm - time.time() > 2.:
+            logger.info("waiting [%s]", target_names, extra={"rate": 1/2})
         client.new_sample()
 
 
-def find(targets, logger=None, sample=None):
+def wait_while(targets, timeout=..., logger=None):
+    if isinstance(targets, str):
+        targets = (targets,)
+    if timeout is ...:
+        timeout = config.get("utils:default-wait-timeout")
+    tm = time.time()
+    attempt = 1
+    while 1:
+        for t in targets:
+            match = templates[t].find()
+            if match:
+                if logger and tm - time.time() > 2.:
+                    logger.info("still can find [%s]", match, extra={"rate": 1 / 2})
+                break
+        else:
+            return True
+        if timeout is not None and (time.time() - tm) > timeout:
+            return False
+        client.new_sample()
+        attempt += 1
+
+
+def find(targets, logger=None, sample=None, threshold=None):
     if isinstance(targets, str):
         targets = (targets,)
     for t in targets:
-        match = templates[t].find(sample=sample)
+        match = templates[t].find(sample=sample, threshold=threshold)
         if match:
             return match.set_logger(logger)
     return NoMatch(targets).set_logger(logger)
 
 
-def find_all(target, logger=None, sample=None):
-    return [x.set_logger(logger) for x in templates[target].find_all(sample=sample)]
+def find_all(target, logger=None, sample=None, threshold=None):
+    return [x.set_logger(logger) for x in templates[target].find_all(sample=sample, threshold=threshold)]
 
 
 def click(targets, timeout=0, logger=None):
@@ -191,12 +216,13 @@ click_mouse = client.click
 mouse_move = client.move
 
 
-def reshaped_sample(left=0, top=0, right=0, bottom=0):
+def reshaped_sample(left=0, top=0, right=0, bottom=0, sample=None):
     assert 0 <= left <= 1
     assert 0 <= top <= 1
     assert 0 <= right <= 1
     assert 0 <= bottom <= 1
-    sample = client.get_sample()
+    if sample is None:
+        sample = client.get_sample()
     w, h = sample.shape[::-1]
     left = int(w * left)
     right = int(w * (1 - right))
@@ -219,18 +245,22 @@ class LoopObj:
         self._last_time = 0
         self._logger = logger
 
-    def sleep(self):
+    def reset_timer(self):
+        self._last_time = time.time()
+
+    def new_sample(self):
         if self._min_timeout:
             delta = time.time() - self._last_time
             if delta < self._min_timeout:
                 time.sleep(self._min_timeout - delta)
-
-    def new_sample(self):
         client.new_sample()
-        self._last_time = time.time()
+        self.reset_timer()
 
     def wait(self, *args, **kwargs):
         return wait(*args, **kwargs, logger=self._logger)
+
+    def wait_while(self, *args, **kwargs):
+        return wait_while(*args, **kwargs, logger=self._logger)
 
     def find(self, *args, **kwargs):
         return find(*args, **kwargs, logger=self._logger)
@@ -251,8 +281,8 @@ def resample_loop(min_timeout=0, logger=None):
 
     def wrapper(fn):
         def loop(*args, **kwargs):
+            loop_obj.reset_timer()
             while 1:
-                loop_obj.sleep()
                 try:
                     return fn(*args, **kwargs, loop=loop_obj)
                 except Retry as e:
