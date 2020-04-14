@@ -5,6 +5,10 @@ import threading
 import time
 import signal
 import settings
+from console.config import config
+
+
+config.add_option("adb:device", type=str, default=settings.ADB_DEVICE)
 
 
 logger = logging.getLogger(__name__)
@@ -63,16 +67,17 @@ def get_attached_devices():
     return ret
 
 
-def connect_to_bluestacks():
+def connect_to_device():
     output = get_attached_devices()
     if output is None:
         logger.error("Can't get list of connected devices.")
         return False
-    connected = "127.0.0.1:5555" in [x[0] for x in output]
+    adb_device = config.get("adb:device")
+    connected = adb_device in [x[0] for x in output]
     if not connected:
-        success, output = run_command_ex(["adb", "connect", "127.0.0.1:5555"])
+        success, output = run_command_ex(["adb", "connect", adb_device])
         if not success or "failed" in output:
-            logger.error("Can't connect to Bluestacks.")
+            logger.error("Can't connect to device (start Nox or Bluestacks).")
             return False
     return True
 
@@ -81,7 +86,7 @@ def push_server():
     return run_command([
         "adb",
         "-s",
-        f"{settings.ADB_DEVICE}",
+        config.get("adb:device"),
         "push",
         settings.ADB_SERVER_FILENAME,
         settings.ADB_DEVICE_SERVER_PATH
@@ -92,7 +97,7 @@ def enable_tunnel():
     return run_command([
         "adb",
         "-s",
-        f"{settings.ADB_DEVICE}",
+        config.get("adb:device"),
         "forward",
         f"tcp:{settings.LOCAL_PORT}",
         f"localabstract:{settings.ADB_SOCKET_NAME}"
@@ -117,7 +122,7 @@ def execute_server():
     args = [
         "adb",
         "-s",
-        f"{settings.ADB_DEVICE}",
+        config.get("adb:device"),
         "shell",
         f"CLASSPATH={settings.ADB_DEVICE_SERVER_PATH}",
         "app_process",
@@ -174,7 +179,7 @@ def run_server():
     atexit.unregister(kill_server)
     atexit.register(kill_server)
     kill_server()
-    if not connect_to_bluestacks():
+    if not connect_to_device():
         return False
     if not push_server():
         return False
