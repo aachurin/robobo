@@ -118,8 +118,10 @@ def get_arena_state(timeout=...):
 @resample_loop(min_timeout=0.5, logger=logger)
 def choose_enemy_and_attack(max_force, type, *, loop):
     if type == 10:
+        capacity = 10
         positions = ARENA10_POS
     else:
+        capacity = 15
         positions = ARENA15_POS
 
     forces1 = []
@@ -144,9 +146,12 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(15, 15)
         loop.wait_while("arena/game/attack", timeout=2.)
 
+    # simplest stage check
+    phase = capacity - len(forces1 + forces2)
     forces1 = sorted(forces1)
     forces2 = sorted(forces2)
-    if forces1 and forces1[0][0] < max_force:
+    logger.info("current stage: %d", phase)
+    if forces1 and phase == 1 and forces1[0][0] < max_force:
         enemy = forces1[0]
     else:
         enemy = sorted(forces1 + forces2)[0]

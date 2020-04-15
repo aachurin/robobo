@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 import settings
 
-version = "1.3"
+version = "1.4"
 
 print("Robot v%s" % version)
 print()
@@ -37,7 +37,7 @@ def _exception_hook(exctype, value, traceback):
 sys.excepthook = _exception_hook
 
 
-def save_sample(sample=None, *, filename=None, directory=settings.SAMPLE_DIR):
+def save_sample(filename=None, *, sample=None, directory=settings.SAMPLE_DIR):
     if sample is None:
         sample = get_sample()
     if filename is None:

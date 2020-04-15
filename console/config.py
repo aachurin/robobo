@@ -39,6 +39,8 @@ class Config:
     def set(self, name, value):
         if name in self._options:
             value = self._options[name].validate(value)
+        else:
+            raise KeyError("Unknown option")
         self._data[name] = value
         self._dump()
 

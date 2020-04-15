@@ -153,7 +153,7 @@ class Templates(dict):
 templates = Templates()
 
 
-def wait(targets, timeout=..., logger=None):
+def wait(targets, timeout=..., logger=None, threshold=None):
     if isinstance(targets, str):
         targets = (targets,)
     if timeout is ...:
@@ -162,7 +162,7 @@ def wait(targets, timeout=..., logger=None):
     tm = time.time()
     while 1:
         for t in targets:
-            match = templates[t].find()
+            match = templates[t].find(threshold=threshold)
             if match:
                 return match.set_logger(logger)
         if timeout is not None and (time.time() - tm) > timeout:
