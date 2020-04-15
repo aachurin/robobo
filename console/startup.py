@@ -8,7 +8,7 @@ import settings
 
 version = "1.3"
 
-print("🤖  Robot v%s" % version)
+print("Robot v%s" % version)
 print()
 
 from console.logging import setup_logging
