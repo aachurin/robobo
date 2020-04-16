@@ -18,7 +18,7 @@ class Navigation:
         self._check_to_location = {}
 
     def get_loc(self, timeout=0):
-        check = wait(self._check_to_location.keys(), timeout=timeout)
+        check = wait(self._check_to_location.keys(), timeout=timeout, trace_frame=1)
         if not check:
             return None
         return self._check_to_location[check]
@@ -57,7 +57,7 @@ class Navigation:
             def transition():
                 logger.info("go to %r", to_loc)
                 if action():
-                    wait(self._location_check[to_loc])
+                    wait(self._location_check[to_loc], trace_frame=1)
             self._transitions[(from_loc, to_loc)] = transition
             return transition
         return wrapper
@@ -80,30 +80,31 @@ class Navigation:
 
 
 navigation = Navigation()
+
 navigation.add_location("home", check="home/map")
 navigation.add_location("map", check="map/home")
 navigation.add_location("arena", check="arena/check")
 
 
 @navigation.add_transition("home", "map")
-def _transition():
+def home_to_map_transition():
     return click("home/map", logger=logger)
 
 
 @navigation.add_transition("map", "home")
-def _transition():
+def map_to_home_transition():
     return click("map/home", logger=logger)
 
 
 @navigation.add_transition("map", "arena")
-def _transition():
+def map_to_arena_transition():
     mouse_move(50, 50, settings.SCREEN_WIDTH - 50, 50)
     time.sleep(0.5)
     return click("map/arena", logger=logger)
 
 
 @navigation.add_transition("arena", "map")
-def _transition():
+def arena_to_map_transition():
     return click("arena/close", logger=logger)
 
 

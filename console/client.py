@@ -191,6 +191,7 @@ class Client:
         self.mouse_down(x, y)
         time.sleep(config.get("client:click-timeout"))
         self.mouse_up(x, y)
+        return (x, y)
 
     def move(self, x1, y1, x2, y2):
         c = 8

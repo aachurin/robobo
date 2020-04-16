@@ -6,10 +6,11 @@ import settings
 import logging
 from console.client import client
 from console.config import config
+from console.trace import trace
 
 
 __all__ = ("wait", "find", "find_all", "click", "click_mouse", "mouse_move",
-           "reshaped_sample", "get_sample", "resample_loop")
+           "reshaped_sample", "get_sample_part", "get_sample", "resample_loop")
 
 
 logger = logging.getLogger(__name__)
@@ -43,8 +44,10 @@ class Match:
         h2 = self.height // 2
         x = self.left + w2
         y = self.top + h2
-        client.click(x, y, rand_x=w2 // 2, rand_y=h2 // 2)
-        (self.logger or logger).info("click on [%r]", self)
+        rand_x = 0 if w2 < 10 else w2 // 2
+        rand_y = 0 if h2 < 10 else h2 // 2
+        point = client.click(x, y, rand_x=rand_x, rand_y=rand_y)
+        (self.logger or logger).info("click on [%r, %r]", self, point)
         return True
 
     def __str__(self):
@@ -90,6 +93,10 @@ class NoMatch:
     def click(self):
         (self.logger or logger).error("could not click [%r]", self.origin)
         return False
+
+    @property
+    def name(self):
+        return repr(self.origin)
 
     def __bool__(self):
         return False
@@ -155,7 +162,15 @@ class Templates(dict):
 templates = Templates()
 
 
-def wait(targets, timeout=..., logger=None, threshold=None):
+def wait(
+        targets,
+        timeout=...,
+        logger=None,
+        threshold=None,
+        can_trace=True,
+        trace_frame=0
+):
+    trace_frame += 1
     if isinstance(targets, str):
         targets = (targets,)
     if timeout is ...:
@@ -163,18 +178,32 @@ def wait(targets, timeout=..., logger=None, threshold=None):
     target_names = ", ".join(targets)
     tm = time.time()
     while 1:
+        sample = client.get_sample()
         for t in targets:
-            match = templates[t].find(threshold=threshold)
+            match = templates[t].find(sample=sample, threshold=threshold)
             if match:
+                if can_trace:
+                    trace.trace("<done>", sample, match, trace_frame=trace_frame)
                 return match.set_logger(logger)
         if timeout is not None and (time.time() - tm) > timeout:
-            return NoMatch(targets).set_logger(logger)
+            match = NoMatch(targets).set_logger(logger)
+            if can_trace:
+                trace.trace("<timeout>", sample, match, trace_frame=trace_frame)
+            return match
         if logger and tm - time.time() > 2.:
             logger.info("waiting [%s]", target_names, extra={"rate": 1/2})
         client.new_sample()
 
 
-def wait_while(targets, timeout=..., logger=None):
+def wait_while(
+        targets,
+        timeout=...,
+        logger=None,
+        threshold=None,
+        can_trace=True,
+        trace_frame=0
+):
+    trace_frame += 1
     if isinstance(targets, str):
         targets = (targets,)
     if timeout is ...:
@@ -182,26 +211,44 @@ def wait_while(targets, timeout=..., logger=None):
     tm = time.time()
     attempt = 1
     while 1:
+        sample = client.get_sample()
         for t in targets:
-            match = templates[t].find()
+            match = templates[t].find(sample=sample, threshold=threshold)
             if match:
                 if logger and tm - time.time() > 2.:
                     logger.info("still can find [%s]", match, extra={"rate": 1 / 2})
                 break
         else:
+            if can_trace:
+                match = NoMatch(targets)
+                trace.trace("<done>", sample, match, trace_frame=trace_frame)
             return True
         if timeout is not None and (time.time() - tm) > timeout:
+            if can_trace:
+                trace.trace("<timeout>", sample, match, trace_frame=trace_frame)
             return False
         client.new_sample()
         attempt += 1
 
 
-def find(targets, logger=None, sample=None, threshold=None):
+def find(
+        targets,
+        logger=None,
+        sample=None,
+        threshold=None,
+        can_trace=True,
+        trace_frame=0
+):
+    trace_frame += 1
     if isinstance(targets, str):
         targets = (targets,)
+    if sample is None:
+        sample = client.get_sample()
     for t in targets:
         match = templates[t].find(sample=sample, threshold=threshold)
         if match:
+            if can_trace:
+                trace.trace("<done>", sample, match, trace_frame=trace_frame)
             return match.set_logger(logger)
     return NoMatch(targets).set_logger(logger)
 
@@ -210,14 +257,16 @@ def find_all(target, logger=None, sample=None, threshold=None):
     return [x.set_logger(logger) for x in templates[target].find_all(sample=sample, threshold=threshold)]
 
 
-def click(targets, timeout=..., logger=None):
-    return wait(targets, timeout=timeout, logger=logger).click()
+def click(*args, trace_frame=0, **kwargs):
+    trace_frame += 1
+    return wait(*args, trace_frame=trace_frame, **kwargs).click()
 
 
-def click_and_check(targets, timeout=..., check_timeout=None, logger=None):
-    if wait(targets, timeout=timeout, logger=logger).click():
-        check_timeout = check_timeout or timeout
-        return wait_while(targets, timeout=check_timeout, logger=logger)
+def click_and_check(*args, timeout=..., check_timeout=..., trace_frame=0, **kwargs):
+    trace_frame += 1
+    clicked = wait(*args, timeout=timeout, trace_frame=trace_frame, **kwargs).click()
+    if clicked:
+        return wait_while(*args, timeout=check_timeout, trace_frame=trace_frame, **kwargs)
     return False
 
 
@@ -240,12 +289,19 @@ def reshaped_sample(left=0, top=0, right=0, bottom=0, sample=None):
     return sample[top:bottom, left:right]
 
 
+def get_sample_part(x, y, width, height, sample=None):
+    if sample is None:
+        sample = client.get_sample()
+    return sample[y:y + height, x:x + width]
+
+
 get_sample = client.get_sample
 
 
 class Retry(Exception):
-    def __init__(self, log_retry=True):
+    def __init__(self, log_retry=True, kwargs=None):
         self.log_retry = log_retry
+        self.kwargs = kwargs
 
 
 class LoopObj:
@@ -265,41 +321,50 @@ class LoopObj:
         client.new_sample()
         self.reset_timer()
 
-    def wait(self, *args, **kwargs):
-        return wait(*args, **kwargs, logger=self._logger)
+    def wait(self, *args, trace_frame=0, **kwargs):
+        trace_frame += 1
+        return wait(*args, **kwargs, logger=self._logger, trace_frame=trace_frame)
 
-    def wait_while(self, *args, **kwargs):
-        return wait_while(*args, **kwargs, logger=self._logger)
+    def wait_while(self, *args, trace_frame=0, **kwargs):
+        trace_frame += 1
+        return wait_while(*args, **kwargs, logger=self._logger, trace_frame=trace_frame)
 
-    def find(self, *args, **kwargs):
-        return find(*args, **kwargs, logger=self._logger)
+    def find(self, *args, trace_frame=0, **kwargs):
+        trace_frame += 1
+        return find(*args, **kwargs, logger=self._logger, trace_frame=trace_frame)
 
     def find_all(self, *args, **kwargs):
         return find_all(*args, **kwargs, logger=self._logger)
 
-    def click(self, *args, **kwargs):
-        return click(*args, **kwargs, logger=self._logger)
+    def click(self, *args, trace_frame=0, **kwargs):
+        trace_frame += 1
+        return click(*args, **kwargs, logger=self._logger, trace_frame=trace_frame)
 
-    def click_and_check(self, *args, **kwargs):
-        return click_and_check(*args, **kwargs, logger=self._logger)
+    def click_and_check(self, *args, trace_frame=0, **kwargs):
+        trace_frame += 1
+        return click_and_check(*args, **kwargs, logger=self._logger, trace_frame=trace_frame)
 
     @staticmethod
-    def retry(log_retry=True):
-        raise Retry(log_retry)
+    def retry(log_retry=True, **kwargs):
+        raise Retry(log_retry, kwargs)
 
 
-def resample_loop(min_timeout=0, logger=None):
+def resample_loop(min_timeout=0, logger=None, force_resample=False):
     loop_obj = LoopObj(min_timeout=min_timeout, logger=logger)
 
     def wrapper(fn):
         def loop(*args, **kwargs):
-            loop_obj.reset_timer()
+            if force_resample:
+                loop_obj.new_sample()
+            else:
+                loop_obj.reset_timer()
             while 1:
                 try:
                     return fn(*args, **kwargs, loop=loop_obj)
                 except Retry as e:
                     if logger and e.log_retry:
                         logger.info("resample and retry", extra={"rate": 1/1.})
+                    kwargs.update(e.kwargs or {})
                 loop_obj.new_sample()
         return loop
     return wrapper
