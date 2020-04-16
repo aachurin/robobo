@@ -39,9 +39,11 @@ class Match:
         return self.top + self.height - 1
 
     def click(self):
-        x = self.left + self.width // 2
-        y = self.top + self.height // 2
-        client.click(x, y)
+        w2 = self.width // 2
+        h2 = self.height // 2
+        x = self.left + w2
+        y = self.top + h2
+        client.click(x, y, rand_x=w2 // 2, rand_y=h2 // 2)
         (self.logger or logger).info("click on [%r]", self)
         return True
 

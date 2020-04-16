@@ -2,6 +2,7 @@ import time
 import posix_ipc
 import socket
 import mmap
+import random
 import logging
 import threading
 import struct
@@ -182,7 +183,11 @@ class Client:
     def mouse_move(self, x, y):
         self.socket.send(pack_mouse_event(MouseAcion.MOVE, MouseButton.PRIMARY, x, y))
 
-    def click(self, x, y):
+    def click(self, x, y, rand_x=None, rand_y=None):
+        if rand_x:
+            x += random.randint(-rand_x, rand_x)
+        if rand_y:
+            y += random.randint(-rand_x, rand_x)
         self.mouse_down(x, y)
         time.sleep(config.get("client:click-timeout"))
         self.mouse_up(x, y)

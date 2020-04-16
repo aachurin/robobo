@@ -1,4 +1,5 @@
 import logging
+import random
 from console.utils import wait, find_all, click_mouse, reshaped_sample, resample_loop
 from console.config import config
 from console.navigation import navigation
@@ -66,12 +67,13 @@ def start_arena(count=1, kind=None, max_force=None, type=None):
     `kind`, `max_force` and `type` is used to override default behavior.
     `count` - how many times to start the game
     """
-    for _ in range(count):
-        start_arena_once(kind=kind, max_force=max_force, type=type)
+    for num in range(count):
+        start_arena_once(num, kind=kind, max_force=max_force, type=type)
 
 
-def start_arena_once(kind=None, max_force=None, type=None):
+def start_arena_once(num, kind=None, max_force=None, type=None):
     assert kind in (None, "food", "ticket")
+    logger.info("start arena #%d", num)
     goto_arena(kind)
     run_arena(max_force=max_force, type=type)
 
@@ -99,11 +101,13 @@ def run_arena(max_force, type, *, loop):
     elif state == "arena/game/finished":
         loop.click_and_check(["arena/game/close", "arena/game/close2"], timeout=2)
         return
+    loc = navigation.get_loc()
+    if loc == "arena":
+        return
     loop.retry()
 
 
 def get_arena_state(timeout=...):
-    # 1150x128 - забрать награду
     return wait((
         "arena/game/active",
         "arena/game/finished",
@@ -115,6 +119,23 @@ def get_arena_state(timeout=...):
     ), timeout=timeout)
 
 
+def get_current_stage(timeout=...):
+    stage = wait((
+        "arena/game/stage1",
+        "arena/game/stage2",
+        "arena/game/stage3",
+        "arena/game/stage4",
+        "arena/game/stage5",
+    ), timeout=timeout)
+    return {
+        "arena/game/stage1": 1,
+        "arena/game/stage2": 2,
+        "arena/game/stage3": 3,
+        "arena/game/stage4": 4,
+        "arena/game/stage5": 5
+    }.get(stage)
+
+
 @resample_loop(min_timeout=0.5, logger=logger)
 def choose_enemy_and_attack(max_force, type, *, loop):
     if type == 10:
@@ -124,37 +145,45 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         capacity = 15
         positions = ARENA15_POS
 
-    forces1 = []
-    forces2 = []
-    forces = forces1
+    stage = get_current_stage(2)
+    logger.info("current stage: %d", stage)
 
-    for num, pos in enumerate(positions, 1):
+    random_plan = list(enumerate(positions))
+    random.shuffle(random_plan)
+    forces = [None] * capacity
+    my_idx = None
+
+    for idx, pos in random_plan:
         if get_arena_state(1) != "arena/game/active":
             return False
-        click_mouse(*pos)
+        click_mouse(*pos, rand_x=10, rand_y=10)
         loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=2.):
-            logger.info("enemy %d - looks like it's me", num)
-            forces = forces2
+            logger.info("enemy %d - looks like it's me", idx + 1)
+            my_idx = idx
             continue
         elif loop.find("arena/game/can_attack"):
             force = get_enemy_force()
-            logger.info("enemy %d - force %d", num, force)
-            forces.append((force, pos))
+            logger.info("enemy %d - force %d", idx + 1, force)
+            forces[idx] = (force, pos)
         else:
-            logger.info("enemy %d - could not attack", num)
-        click_mouse(15, 15)
+            logger.info("enemy %d - could not attack", idx + 1)
+        click_mouse(15, 15, rand_x=5, rand_y=5)
         loop.wait_while("arena/game/attack", timeout=2.)
 
-    # simplest stage check
-    phase = capacity - len(forces1 + forces2)
-    forces1 = sorted(forces1)
-    forces2 = sorted(forces2)
-    logger.info("current stage: %d", phase)
-    if forces1 and phase == 1 and forces1[0][0] < max_force:
+    if my_idx is not None:
+        forces1, forces2 = forces[:my_idx], forces[my_idx + 1:]
+    else:
+        forces1, forces2 = [], forces
+
+    forces1 = sorted(filter(bool, forces1))
+    forces2 = sorted(filter(bool, forces2))
+
+    if forces1 and stage != 1 and forces1[0][0] < max_force:
         enemy = forces1[0]
     else:
         enemy = sorted(forces1 + forces2)[0]
+
     logger.info("select enemy with force %d", enemy[0])
     click_mouse(*enemy[1])
     loop.click_and_check("arena/game/attack")
