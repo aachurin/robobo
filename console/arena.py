@@ -177,12 +177,11 @@ def choose_enemy_and_attack(max_force, type, *, loop):
             "arena/game/played_win",
             "arena/game/played_me1",
             "arena/game/played_me2",
-            "arena/game/played_me3",
-        ), sample=slot_sample)
+        ), sample=slot_sample, threshold=0.87)
         if not found:
             slots.append((num, (x + slot_width // 2, y + slot_height // 2)))
         elif found:
-            if found in ("arena/game/played_me1", "arena/game/played_me2", "arena/game/played_me3"):
+            if found in ("arena/game/played_me1", "arena/game/played_me2"):
                 found_me = True
                 slots = slots_after
                 logger.info("enemy %d - looks like it's me", num + 1)
