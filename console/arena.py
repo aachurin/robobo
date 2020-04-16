@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 config.add_option("arena:max-force", type=int, min_value=0, default=250000)
 config.add_option("arena:type", choices=(10, 15), default=10)
 config.add_option("arena:kind", choices=(None, "food", "ticket"), default=None)
+config.add_option("arena:shuffle", type=bool, default=False)
 
 
 def set_arena_type(value):
@@ -49,16 +50,16 @@ def set_arena_kind(value):
 
 
 ARENA10_POS = (
-    (645, 150),
-    (520, 290),
-    (777, 290),
-    (395, 430),
-    (645, 430),
-    (890, 430),
-    (275, 570),
-    (525, 570),
-    (777, 570),
-    (1115, 570),
+    (641, 155),
+    (519, 293),
+    (767, 293),
+    (399, 435),
+    (644, 435),
+    (890, 435),
+    (276, 576),
+    (522, 576),
+    (770, 576),
+    (1014, 576),
 )
 
 
@@ -148,36 +149,39 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     stage = get_current_stage(2)
     logger.info("current stage: %d", stage)
 
-    random_plan = list(enumerate(positions))
-    random.shuffle(random_plan)
-    forces = [None] * capacity
-    my_idx = None
+    plan = list(enumerate(positions))
+    if config.get("arena:shuffle"):
+        plan = random.shuffle(plan)
+    forces = {}
+    my_index = None
 
-    for idx, pos in random_plan:
+    for index, pos in plan:
         if get_arena_state(1) != "arena/game/active":
             return False
-        click_mouse(*pos, rand_x=10, rand_y=10)
+        click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
-        if not loop.wait("arena/game/attack", timeout=2.):
-            logger.info("enemy %d - looks like it's me", idx + 1)
-            my_idx = idx
+        if not loop.wait("arena/game/attack", timeout=3.):
+            logger.info("enemy %d - looks like it's me", index + 1)
+            my_index = index
             continue
         elif loop.find("arena/game/can_attack"):
             force = get_enemy_force()
-            logger.info("enemy %d - force %d", idx + 1, force)
-            forces[idx] = (force, pos)
+            logger.info("enemy %d - force %d", index + 1, force)
+            forces[index] = (force, pos)
         else:
-            logger.info("enemy %d - could not attack", idx + 1)
-        click_mouse(15, 15, rand_x=5, rand_y=5)
+            logger.info("enemy %d - could not attack", index + 1)
+        click_mouse(1160, 380, rand_x=50, rand_y=50)
         loop.wait_while("arena/game/attack", timeout=2.)
 
-    if my_idx is not None:
-        forces1, forces2 = forces[:my_idx], forces[my_idx + 1:]
+    if my_index is not None:
+        forces1 = [v for k, v in forces.items() if k > my_index]
+        forces2 = [v for k, v in forces.items() if k < my_index]
     else:
-        forces1, forces2 = [], forces
+        forces1 = []
+        forces2 = list(forces.values())
 
-    forces1 = sorted(filter(bool, forces1))
-    forces2 = sorted(filter(bool, forces2))
+    forces1 = sorted(forces1)
+    forces2 = sorted(forces2)
 
     if forces1 and stage != 1 and forces1[0][0] < max_force:
         enemy = forces1[0]
