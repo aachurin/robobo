@@ -169,23 +169,26 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     slots_before = []
     slots_after = []
     slots = slots_before
+    found_me = False
     for num, (x, y) in enumerate(arena["positions"]):
         slot_sample = get_sample_part(x, y + slot_offset, slot_width, slot_height - slot_offset)
         found = find((
             "arena/game/played_defeat",
             "arena/game/played_win",
-            "arena/game/played_me",
+            "arena/game/played_me1",
+            "arena/game/played_me2",
         ), sample=slot_sample, threshold=0.85)
         if not found:
             slots.append((num, (x + slot_width // 2, y + slot_height // 2)))
         elif found:
-            if found == "arena/game/played_me":
+            if found in ("arena/game/played_me1", "arena/game/played_me2"):
+                found_me = True
                 slots = slots_after
                 logger.info("enemy %d - looks like it's me", num + 1)
             else:
                 logger.info("enemy %d - could not attack", num + 1)
 
-    if stage == 1:
+    if stage == 1 or not found_me:
         slots_after = slots_before + slots_after
         slots_before = []
 
