@@ -187,7 +187,7 @@ class Client:
         if rand_x:
             x += random.randint(-rand_x, rand_x)
         if rand_y:
-            y += random.randint(-rand_x, rand_x)
+            y += random.randint(-rand_y, rand_y)
         self.mouse_down(x, y)
         time.sleep(config.get("client:click-timeout"))
         self.mouse_up(x, y)

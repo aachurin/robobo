@@ -175,7 +175,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
             "arena/game/played_defeat",
             "arena/game/played_win",
             "arena/game/played_me",
-        ), sample=slot_sample)
+        ), sample=slot_sample, threshold=0.85)
         if not found:
             slots.append((num, (x + slot_width // 2, y + slot_height // 2)))
         elif found:
@@ -196,21 +196,21 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=3.):
-            logger.error("enemy %d - no dialog!", num + 1)
+            logger.error("enemy %d - looks like it's me!", num + 1)
             continue
-        if not loop.find("arena/game/can_attack"):
-            logger.error("enemy %d - could not attack!", num + 1)
-            continue
-        force = get_enemy_force()
-        logger.info("enemy %d - force %d", num + 1, force)
-        if force < max_force:
-            logger.info("select enemy %d with force %d", num + 1, force)
-            loop.click_and_check("arena/game/attack")
-            return
+        if loop.find("arena/game/can_attack"):
+            force = get_enemy_force()
+            logger.info("enemy %d - force %d", num + 1, force)
+            if force < max_force:
+                logger.info("select enemy %d with force %d", num + 1, force)
+                loop.click_and_check("arena/game/attack")
+                return
+            else:
+                forces.append((force, (num, pos)))
         else:
-            forces.append((force, (num, pos)))
-            click_mouse(1160, 380, rand_x=50, rand_y=50)
-            loop.wait_while("arena/game/attack", timeout=3.)
+            logger.error("enemy %d - could not attack!", num + 1)
+        click_mouse(1160, 380, rand_x=50, rand_y=50)
+        loop.wait_while("arena/game/attack", timeout=3.)
 
     for num, pos in slots_after:
         if get_arena_state(1, can_trace=False) != "arena/game/active":
@@ -218,14 +218,14 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=3.):
-            logger.error("enemy %d - no dialog!", num + 1)
+            logger.error("enemy %d - looks like it's me!", num + 1)
             continue
-        if not loop.find("arena/game/can_attack"):
+        if loop.find("arena/game/can_attack"):
+            force = get_enemy_force()
+            logger.info("enemy %d - force %d", num + 1, force)
+            forces.append((force, (num, pos)))
+        else:
             logger.error("enemy %d - could not attack!", num + 1)
-            continue
-        force = get_enemy_force()
-        logger.info("enemy %d - force %d", num + 1, force)
-        forces.append((force, (num, pos)))
         click_mouse(1160, 380, rand_x=50, rand_y=50)
         loop.wait_while("arena/game/attack", timeout=3.)
 

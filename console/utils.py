@@ -120,13 +120,13 @@ class Template:
         self.img = img
 
     def find(self, sample=None, threshold=None):
-        threshold = threshold or settings.IMAGE_SEARCH_THESHOLD
+        threshold = threshold or settings.IMAGE_SEARCH_TRHESHOLD
         matches = self.find_all(sample=sample, threshold=threshold)
         if matches:
             return matches[0]
 
     def find_all(self, sample=None, threshold=None):
-        threshold = threshold or settings.IMAGE_SEARCH_THESHOLD
+        threshold = threshold or settings.IMAGE_SEARCH_TRHESHOLD
         if sample is None:
             sample = client.get_sample()
         res = cv2.matchTemplate(sample, self.img, cv2.TM_CCOEFF_NORMED)
