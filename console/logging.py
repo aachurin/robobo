@@ -49,7 +49,7 @@ def setup_logging():
         },
         "formatters": {
             "standard": {
-                "format": "[%(name)s] %(message)s"
+                "format": "%(asctime)s [%(name)s] %(message)s"
             }
         },
         "handlers": {

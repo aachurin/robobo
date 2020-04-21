@@ -169,7 +169,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     slots_before = []
     slots_after = []
     slots = slots_before
-    found_me = False
+    own_num = None
     for num, (x, y) in enumerate(arena["positions"]):
         slot_sample = get_sample_part(x, y + slot_offset, slot_width, slot_height - slot_offset)
         found = find((
@@ -177,18 +177,18 @@ def choose_enemy_and_attack(max_force, type, *, loop):
             "arena/game/played_win",
             "arena/game/played_me1",
             "arena/game/played_me2",
-        ), sample=slot_sample, threshold=0.87)
+        ), sample=slot_sample, threshold=0.85)
         if not found:
             slots.append((num, (x + slot_width // 2, y + slot_height // 2)))
         elif found:
             if found in ("arena/game/played_me1", "arena/game/played_me2"):
-                found_me = True
+                own_num = num
                 slots = slots_after
                 logger.info("enemy %d - looks like it's me", num + 1)
             else:
                 logger.info("enemy %d - could not attack", num + 1)
 
-    if stage == 1 or not found_me:
+    if stage == 1 or own_num is None:
         slots_after = slots_before + slots_after
         slots_before = []
 
@@ -199,7 +199,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=3.):
-            logger.error("enemy %d - looks like it's me!", num + 1)
+            logger.error("enemy %d - looks like it's me, suppose this is a mistake", num + 1)
             continue
         if loop.find("arena/game/can_attack"):
             force = get_enemy_force()
@@ -211,7 +211,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
             else:
                 forces.append((force, (num, pos)))
         else:
-            logger.error("enemy %d - could not attack!", num + 1)
+            logger.error("enemy %d - could not attack, guess not found earlier", num + 1)
         click_mouse(1160, 380, rand_x=50, rand_y=50)
         loop.wait_while("arena/game/attack", timeout=3.)
 
@@ -221,7 +221,11 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
         if not loop.wait("arena/game/attack", timeout=3.):
-            logger.error("enemy %d - looks like it's me!", num + 1)
+            if own_num is None:
+                own_num = num
+                logger.info("enemy %d - looks like it's me", num + 1)
+            else:
+                logger.error("enemy %d - looks like it's me, suppose this is a mistake", num + 1)
             continue
         if loop.find("arena/game/can_attack"):
             force = get_enemy_force()
@@ -232,15 +236,32 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         click_mouse(1160, 380, rand_x=50, rand_y=50)
         loop.wait_while("arena/game/attack", timeout=3.)
 
-    forces = sorted(forces)
     if not forces:
         return False
 
-    force, (num, pos) = forces[0]
+    force, (num, pos) = choose_enemy_alg(sorted(forces), stage, own_num, max_force)
+
     logger.info("select enemy %d with force %d", num + 1, force)
     click_mouse(*pos, rand_x=50, rand_y=50)
     loop.click_and_check("arena/game/attack")
     return True
+
+
+def choose_enemy_alg(forces, stage, own_num, max_force):
+    force, (num, pos) = forces[0]
+    special_case1 = (
+            1 < stage < 5 and
+            len(forces) > 1 and
+            own_num == 0 and
+            num in (2, 3) and
+            force < max_force and
+            forces[1][0] < max_force
+    )
+    if special_case1:
+        logger.info("emeny %d with force %d can beat someone in the next stage, so skip them",
+                    num + 1, force)
+        return choose_enemy_alg(forces[1:], stage, own_num, max_force)
+    return forces[0]
 
 
 def get_enemy_force(sample=None, convert=int, threshold=None):
