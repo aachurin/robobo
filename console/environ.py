@@ -1,6 +1,7 @@
 import time
 from console import adb
 from console.client import client, ClientException
+from console.watchdog import start_watchdog
 
 
 __all__ = ("reboot",)
@@ -17,3 +18,4 @@ def reboot():
         except ClientException:
             adb.kill_server()
             raise
+        start_watchdog()

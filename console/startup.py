@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 import settings
 
-version = "1.6.3"
+version = "1.6.4"
 
 print("Robot v%s" % version)
 print()
@@ -22,6 +22,7 @@ from console.environ import *
 from console.utils import *
 from console.navigation import *
 from console.arena import *
+from console.watchdog import *
 from console.trace import trace
 
 

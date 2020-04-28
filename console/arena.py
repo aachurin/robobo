@@ -1,5 +1,4 @@
 import logging
-import random
 import time
 from console.trace import trace
 from console.utils import wait, find, find_all, click_mouse, get_sample_part, reshaped_sample, resample_loop
@@ -89,38 +88,46 @@ def start_arena(count=1, kind=None, max_force=None, type=None):
 def start_arena_once(num, kind=None, max_force=None, type=None):
     assert kind in (None, "food", "ticket")
     logger.info("start arena #%d", num)
-    goto_arena(kind)
-    return run_arena(max_force=max_force, type=type)
+    context = {"played": 0}
+    while 1:
+        try:
+            goto_arena(kind)
+            finished = run_arena(max_force=max_force, type=type, context=context)
+            if finished:
+                break
+        except Exception:
+            logger.exception("Got unwanted exception, will retry")
+            time.sleep(2)
+
+    return context["played"]
 
 
 @resample_loop(min_timeout=1, logger=logger)
-def run_arena(max_force, type, *, loop, played=0):
+def run_arena(max_force, type, *, loop, context):
     if max_force is None:
         max_force = config.get("arena:max-force")
     if type is None:
         type = config.get("arena:type")
-    state = get_arena_state()
+    state = get_arena_state(timeout=2)
     if state == "arena/game/active":
         if choose_enemy_and_attack(max_force, type):
-            played += 1
+            context["played"] += 1
         # start search and run bu
     elif state == "arena/game/waiting_next":
         logger.info("waiting for next stage", extra={"rate": 1/5})
-        loop.retry(False)
     elif state == "arena/game/waiting_finish":
         logger.info("waiting for arena finished", extra={"rate": 1/5})
-        loop.retry(False)
     elif state in ("arena/game/victory", "arena/game/defeat"):
         loop.click_and_check("arena/game/back", timeout=3)
-    elif state == "arena/game/sleeping":
-        loop.click_and_check("arena/game/sleeping_back", timeout=3)
+    # elif state == "arena/game/sleeping":
+    #     loop.click_and_check("arena/game/sleeping_back", timeout=3)
     elif state == "arena/game/finished":
         time.sleep(5)
         if loop.click_and_check(["arena/game/close", "arena/game/close2"], timeout=3):
-            return played
-    elif state == "arena/check":
-        return played
-    loop.retry(played=played)
+            return True
+    else:
+        return False
+    loop.retry(False)
 
 
 def get_arena_state(*args, **kwargs):
@@ -130,9 +137,7 @@ def get_arena_state(*args, **kwargs):
         "arena/game/waiting_next",
         "arena/game/waiting_finish",
         "arena/game/victory",
-        "arena/game/defeat",
-        "arena/game/sleeping",
-        "arena/check"
+        "arena/game/defeat"
     ), *args, trace_frame=1, **kwargs)
 
 
@@ -194,7 +199,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
 
     forces = []
     for num, pos in reversed(slots_before):
-        if get_arena_state(1, can_trace=False) != "arena/game/active":
+        if get_arena_state(timeout=2, can_trace=False) != "arena/game/active":
             return False
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
@@ -216,7 +221,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         loop.wait_while("arena/game/attack", timeout=3.)
 
     for num, pos in slots_after:
-        if get_arena_state(1, can_trace=False) != "arena/game/active":
+        if get_arena_state(timeout=2, can_trace=False) != "arena/game/active":
             return False
         click_mouse(*pos, rand_x=40, rand_y=40)
         loop.new_sample()
@@ -277,8 +282,7 @@ def get_enemy_force(sample=None, convert=int, threshold=None):
 
 @resample_loop(min_timeout=1, logger=logger, force_resample=True)
 def goto_arena(kind=None, *, loop):
-    state = get_arena_state(0, can_trace=False)
-    if state and state != "arena/check":
+    if get_arena_state(timeout=0, can_trace=False):
         return
 
     if loop.find("arena/dialog/search"):
@@ -300,6 +304,9 @@ def goto_arena(kind=None, *, loop):
     if loc != "arena":
         loop.retry()
 
+    if get_arena_state(timeout=0, can_trace=False):
+        return
+
     kind = kind or config.get("arena:kind")
     if kind is not None:
         mode = loop.find([
@@ -318,5 +325,4 @@ def goto_arena(kind=None, *, loop):
             loop.retry()
 
     loop.click_and_check("arena/start", timeout=3)
-
     loop.retry()

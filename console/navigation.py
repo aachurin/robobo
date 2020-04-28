@@ -46,8 +46,9 @@ class Navigation:
         loop.retry()
 
     def add_location(self, loc, check):
-        assert loc not in self._location_check and check not in self._check_to_location
-        self._location_check[loc] = check
+        # assert loc not in self._location_check and check not in self._check_to_location
+        assert check not in self._check_to_location
+        self._location_check.setdefault(loc, []).append(check)
         self._check_to_location[check] = loc
 
     def add_transition(self, from_loc, to_loc):
@@ -84,6 +85,10 @@ navigation = Navigation()
 navigation.add_location("home", check="home/map")
 navigation.add_location("map", check="map/home")
 navigation.add_location("arena", check="arena/check")
+navigation.add_location("arena", check="arena/game/active")
+navigation.add_location("arena", check="arena/game/finished")
+navigation.add_location("arena", check="arena/game/waiting_next")
+navigation.add_location("arena", check="arena/game/waiting_finish")
 
 
 @navigation.add_transition("home", "map")
@@ -103,9 +108,9 @@ def map_to_arena_transition():
     return click("map/arena", logger=logger)
 
 
-@navigation.add_transition("arena", "map")
-def arena_to_map_transition():
-    return click("arena/close", logger=logger)
-
+# @navigation.add_transition("arena", "map")
+# def arena_to_map_transition():
+#     return click("arena/close", logger=logger)
+#
 
 navigation.setup()

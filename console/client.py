@@ -112,6 +112,10 @@ class Client:
         threading.Thread(target=self.run_receiver, daemon=True).start()
         return True
 
+    @property
+    def connected(self):
+        return self._connected
+
     def _check_sample_size(self):
         sample = self.new_sample()
         if sample.shape != (settings.SCREEN_HEIGHT, settings.SCREEN_WIDTH):
