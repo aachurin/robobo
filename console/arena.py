@@ -10,7 +10,8 @@ __all__ = (
     "start_arena",
     "set_arena_type",
     "set_arena_max_force",
-    "set_arena_kind"
+    "set_arena_kind",
+    "get_arena_stats"
 )
 
 
@@ -72,6 +73,28 @@ ARENA10 = {
     )
 }
 
+ARENA15 = {
+    "width": 224,
+    "height": 130,
+    "state_offset": 80,
+    "positions": (
+        (528, 18),
+        (405, 156),
+        (652, 156),
+        (283, 297),
+        (529, 297),
+        (774, 297),
+        (159, 438),
+        (405, 438),
+        (651, 438),
+        (898, 438),
+        (35,  578),
+        (283, 578),
+        (528, 578),
+        (774, 578),
+        (1022, 578),
+    )
+}
 
 def start_arena(count=1, kind=None, max_force=None, type=None):
     """Start game.
@@ -102,6 +125,13 @@ def start_arena_once(num, kind=None, max_force=None, type=None):
     return context["played"]
 
 
+_stats = {"played": 0, "win": 0}
+
+
+def get_arena_stats():
+    return dict(_stats)
+
+
 @resample_loop(min_timeout=1, logger=logger)
 def run_arena(max_force, type, *, loop, context):
     if max_force is None:
@@ -118,6 +148,9 @@ def run_arena(max_force, type, *, loop, context):
     elif state == "arena/game/waiting_finish":
         logger.info("waiting for arena finished", extra={"rate": 1/5})
     elif state in ("arena/game/victory", "arena/game/defeat"):
+        _stats["played"] += 1
+        if state == "arena/game/victory":
+            _stats["win"] += 1
         loop.click_and_check("arena/game/back", timeout=3)
     # elif state == "arena/game/sleeping":
     #     loop.click_and_check("arena/game/sleeping_back", timeout=3)

@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 import settings
 
-version = "1.6.4"
+version = "1.6.5"
 
 print("Robot v%s" % version)
 print()

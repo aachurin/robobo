@@ -30,10 +30,13 @@ def watchdog_runner():
         if not state:
             continue
         if state == "common/under_attack":
+            logger.info("Under attack")
             click("common/update_button", timeout=0, logger=logger)
         elif state == "common/after_attack":
+            logger.info("After attack")
             click("common/ok_button", timeout=0, logger=logger)
         elif state == "common/another_device":
+            logger.info("Another device")
             click("common/try_again_button", timeout=0, logger=logger)
 
     logger.info("Watchdog stopped")
