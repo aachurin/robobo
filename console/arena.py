@@ -174,20 +174,37 @@ def get_arena_state(*args, **kwargs):
     ), *args, trace_frame=1, **kwargs)
 
 
-def get_current_stage(*args, **kwargs):
+def get_current_stage10(*args, **kwargs):
     stage = wait((
-        "arena/game/stage1",
-        "arena/game/stage2",
-        "arena/game/stage3",
-        "arena/game/stage4",
-        "arena/game/stage5",
+        "arena/game/stage10_1",
+        "arena/game/stage10_2",
+        "arena/game/stage10_3",
+        "arena/game/stage10_4",
+        "arena/game/stage10_5",
     ), *args, trace_frame=1, **kwargs)
     return {
-        "arena/game/stage1": 1,
-        "arena/game/stage2": 2,
-        "arena/game/stage3": 3,
-        "arena/game/stage4": 4,
-        "arena/game/stage5": 5
+        "arena/game/stage10_1": 1,
+        "arena/game/stage10_2": 2,
+        "arena/game/stage10_3": 3,
+        "arena/game/stage10_4": 4,
+        "arena/game/stage10_5": 5
+    }.get(stage)
+
+
+def get_current_stage15(*args, **kwargs):
+    stage = wait((
+        "arena/game/stage15_1",
+        "arena/game/stage15_2",
+        "arena/game/stage15_3",
+        "arena/game/stage15_4",
+        "arena/game/stage15_5",
+    ), *args, trace_frame=1, **kwargs)
+    return {
+        "arena/game/stage15_1": 1,
+        "arena/game/stage15_2": 2,
+        "arena/game/stage15_3": 3,
+        "arena/game/stage15_4": 4,
+        "arena/game/stage15_5": 5
     }.get(stage)
 
 
@@ -198,7 +215,11 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     else:
         arena = ARENA15
 
-    stage = get_current_stage(2)
+    if type == 10:
+        stage = get_current_stage10(2)
+    else:
+        stage = get_current_stage15(2)
+
     logger.info("current stage: %d", stage)
 
     slot_width = arena["width"]
