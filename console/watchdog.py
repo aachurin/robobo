@@ -19,7 +19,8 @@ def watchdog_runner():
     states = (
         "common/under_attack",
         "common/after_attack",
-        "common/another_device"
+        "common/another_device",
+        "common/sleeping"
     )
 
     while _watchdog_thread is not None:
@@ -38,6 +39,9 @@ def watchdog_runner():
         elif state == "common/another_device":
             logger.info("Another device")
             click("common/try_again_button", timeout=0, logger=logger)
+        elif state == "common/sleeping":
+            logger.info("I'm sleeping, really?")
+            click("common/sleeping_back", timeout=0, logger=logger)
 
     logger.info("Watchdog stopped")
 

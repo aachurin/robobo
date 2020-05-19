@@ -152,8 +152,6 @@ def run_arena(max_force, type, *, loop, context):
         if state == "arena/game/victory":
             _stats["win"] += 1
         loop.click_and_check("arena/game/back", timeout=3)
-    # elif state == "arena/game/sleeping":
-    #     loop.click_and_check("arena/game/sleeping_back", timeout=3)
     elif state == "arena/game/finished":
         time.sleep(5)
         if loop.click_and_check(["arena/game/close", "arena/game/close2"], timeout=3):
@@ -252,7 +250,7 @@ def choose_enemy_and_attack(max_force, type, *, loop):
         slots_before = []
 
     forces = []
-    for num, pos in reversed(slots_before):
+    for num, pos in slots_before:
         if get_arena_state(timeout=2, can_trace=False) != "arena/game/active":
             return False
         click_mouse(*pos, rand_x=40, rand_y=40)
