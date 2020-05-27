@@ -10,7 +10,8 @@ from console.trace import trace
 
 
 __all__ = ("wait", "find", "find_all", "click", "click_mouse", "mouse_move",
-           "reshaped_sample", "get_sample_part", "get_sample", "resample_loop")
+           "reshaped_sample", "get_sample_part", "get_sample", "resample_loop",
+           "sample_from_file")
 
 
 logger = logging.getLogger(__name__)
@@ -368,6 +369,12 @@ def resample_loop(min_timeout=0, logger=None, force_resample=False):
                 loop_obj.new_sample()
         return loop
     return wrapper
+
+
+def sample_from_file(key):
+    img = cv2.imread(os.path.join(settings.SAMPLE_DIR, key + ".png"))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return img
 
 
 config.add_option("utils:default-wait-timeout", type=float, min_value=0.1, max_value=100, default=10.)

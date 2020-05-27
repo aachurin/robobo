@@ -1,3 +1,4 @@
 posix_ipc
 opencv-python
 numpy
+playsound

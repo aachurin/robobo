@@ -4,6 +4,11 @@ import time
 from console.utils import wait, click
 from console.client import client
 
+try:
+    import playsound
+except ImportError:
+    playsound = None
+
 
 __all__ = (
     "start_watchdog",
@@ -16,18 +21,22 @@ logger = logging.getLogger(__name__)
 
 def watchdog_runner():
     logger.info("Watchdog started")
+
     states = (
         "common/under_attack",
         "common/after_attack",
         "common/another_device",
-        "common/sleeping"
+        "common/sleeping",
     )
+
+    if playsound:
+        states += ("common/captcha",)
 
     while _watchdog_thread is not None:
         time.sleep(3)
         if not client.connected:
             continue
-        state = wait(states, timeout=0, logger=logger)
+        state = wait(states, timeout=0, logger=logger, threshold=0.9)
         if not state:
             continue
         if state == "common/under_attack":
@@ -42,6 +51,9 @@ def watchdog_runner():
         elif state == "common/sleeping":
             logger.info("I'm sleeping, really?")
             click("common/sleeping_back", timeout=0, logger=logger)
+        elif state == "common/captcha":
+            logger.info("Captcha alarm!")
+            playsound.playsound("sounds/alarm.mp3")
 
     logger.info("Watchdog stopped")
 
