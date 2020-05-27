@@ -27,10 +27,8 @@ def watchdog_runner():
         "common/after_attack",
         "common/another_device",
         "common/sleeping",
+        "common/captcha",
     )
-
-    if playsound:
-        states += ("common/captcha",)
 
     while _watchdog_thread is not None:
         time.sleep(3)
@@ -53,7 +51,14 @@ def watchdog_runner():
             click("common/sleeping_back", timeout=0, logger=logger)
         elif state == "common/captcha":
             logger.info("Captcha alarm!")
-            playsound.playsound("sounds/alarm.mp3")
+            if playsound:
+                playsound.playsound("sounds/alarm.mp3")
+            else:
+                for x in range(6):
+                    time.sleep(1)
+                    print("\007")
+
+
 
     logger.info("Watchdog stopped")
 
