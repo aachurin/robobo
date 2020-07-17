@@ -120,11 +120,26 @@ class Template:
         self.name = name
         self.img = img
 
+    def match(self, sample=None):
+        if sample is None:
+            sample = client.get_sample()
+        res = cv2.matchTemplate(sample, self.img, cv2.TM_CCOEFF_NORMED)
+        if res:
+            _, coef, _, _ = cv2.minMaxLoc(res)
+            return coef
+        return 0.0
+
     def find(self, sample=None, threshold=None):
         threshold = threshold or settings.IMAGE_SEARCH_TRHESHOLD
-        matches = self.find_all(sample=sample, threshold=threshold)
-        if matches:
-            return matches[0]
+        if sample is None:
+            sample = client.get_sample()
+        res = cv2.matchTemplate(sample, self.img, cv2.TM_CCOEFF_NORMED)
+        if len(res):
+            _, coef, _, match = cv2.minMaxLoc(res)
+            if coef >= threshold:
+                width, height = self.img.shape[::-1]
+                left, top = match
+                return Match(self.name, left, top, width, height)
 
     def find_all(self, sample=None, threshold=None):
         threshold = threshold or settings.IMAGE_SEARCH_TRHESHOLD

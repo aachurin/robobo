@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from console.utils import wait, click
+from console.utils import wait, click, click_mouse
 from console.client import client
 
 try:
@@ -23,6 +23,8 @@ def watchdog_runner():
     logger.info("Watchdog started")
 
     states = (
+        "common/hummer1",
+        "common/magnifier1",
         "common/under_attack",
         "common/after_attack",
         "common/another_device",
@@ -34,10 +36,16 @@ def watchdog_runner():
         time.sleep(3)
         if not client.connected:
             continue
-        state = wait(states, timeout=0, logger=logger, threshold=0.9)
+        state = wait(states, timeout=0, logger=logger, threshold=0.65)
         if not state:
             continue
-        if state == "common/under_attack":
+        if state == "common/hummer1":
+            logger.info("Hummer")
+            click_mouse(500, 400, rand_x=100, rand_y=100)
+        elif state == "common/magnifier1":
+            logger.info("Magnifier")
+            click_mouse(500, 400, rand_x=100, rand_y=100)
+        elif state == "common/under_attack":
             logger.info("Under attack")
             click("common/update_button", timeout=0, logger=logger)
         elif state == "common/after_attack":
@@ -57,8 +65,6 @@ def watchdog_runner():
                 for x in range(6):
                     time.sleep(1)
                     print("\007")
-
-
 
     logger.info("Watchdog stopped")
 

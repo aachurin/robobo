@@ -315,9 +315,16 @@ def choose_enemy_alg(forces, stage, own_num, max_force):
             forces[1][0] < max_force
     )
     if special_case1:
+        # don't attack enemy on the 3rd and 4rd place if i'm on the 1st place
         logger.info("emeny %d with force %d can beat someone in the next stage, so skip them",
                     num + 1, force)
         return choose_enemy_alg(forces[1:], stage, own_num, max_force)
+    if stage >= 3 and forces[0][0] > max_force * 1.07:
+        # find latest place
+        force = max(forces, key=lambda x: x[1][0])
+        logger.info("emeny %d with force %d can be weak",
+                    force[1][0] + 1, force[0])
+        return force
     return forces[0]
 
 
