@@ -124,7 +124,7 @@ class Template:
         if sample is None:
             sample = client.get_sample()
         res = cv2.matchTemplate(sample, self.img, cv2.TM_CCOEFF_NORMED)
-        if res:
+        if len(res):
             _, coef, _, _ = cv2.minMaxLoc(res)
             return coef
         return 0.0

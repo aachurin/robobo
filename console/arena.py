@@ -228,6 +228,9 @@ def choose_enemy_and_attack(max_force, type, *, loop):
     slots = slots_before
     own_num = None
     for num, (x, y) in enumerate(arena["positions"]):
+        if get_arena_state(timeout=2, can_trace=False) != "arena/game/active":
+            return False
+
         slot_sample = get_sample_part(x, y + slot_offset, slot_width, slot_height - slot_offset)
         found = find((
             "arena/game/played_defeat",

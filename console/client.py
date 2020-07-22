@@ -7,7 +7,6 @@ import logging
 import threading
 import struct
 import numpy as np
-import cv2
 import settings
 from console.config import config
 from console.exceptions import ConsoleException
@@ -163,7 +162,9 @@ class Client:
         video.seek(0)
         with self.video_lock:
             key, width, height = np.frombuffer(video.read(12), dtype=np.uint32)
-            if key != self.sample_key:
+            if (height, width) != (settings.SCREEN_HEIGHT, settings.SCREEN_WIDTH):
+                logger.error("Invalid frame size.")
+            elif key != self.sample_key:
                 sample = np.frombuffer(video.read(width * height), dtype=np.uint8)
                 sample = sample.reshape((height, width))
                 self.sample = sample

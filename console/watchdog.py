@@ -36,15 +36,22 @@ def watchdog_runner():
         time.sleep(3)
         if not client.connected:
             continue
-        state = wait(states, timeout=0, logger=logger, threshold=0.65)
+        try:
+            state = wait(states, timeout=0, logger=logger, threshold=0.65)
+        except:
+            continue
         if not state:
             continue
         if state == "common/hummer1":
             logger.info("Hummer")
             click_mouse(500, 400, rand_x=100, rand_y=100)
+            if playsound:
+                playsound.playsound("sounds/collect.mp3")
         elif state == "common/magnifier1":
             logger.info("Magnifier")
             click_mouse(500, 400, rand_x=100, rand_y=100)
+            if playsound:
+                playsound.playsound("sounds/collect.mp3")
         elif state == "common/under_attack":
             logger.info("Under attack")
             click("common/update_button", timeout=0, logger=logger)
