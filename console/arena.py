@@ -18,7 +18,8 @@ __all__ = (
 logger = logging.getLogger(__name__)
 config.add_option("arena:max-force", type=int, min_value=0, default=250000)
 config.add_option("arena:type", choices=(10, 15), default=10)
-config.add_option("arena:kind", choices=(None, "food", "ticket"), default=None)
+config.add_option("arena:kind", choices=("food", "ticket"), default="food")
+config.add_option("arena:run-count", type=int, min_value=1, max_value=1000, default=1)
 
 
 trace.suppress("arena/game/waiting_finish")
@@ -53,6 +54,14 @@ def set_arena_kind(value):
         set_arena_kind(None)
     """
     config.set("arena:kind", value)
+
+
+def set_arena_run_count(value):
+    """Set arena run count.
+        Examples:
+            set_arena_run_count(10)
+        """
+    config.set("arena:run-count", value)
 
 
 ARENA10 = {
@@ -109,19 +118,21 @@ def start_arena(count=1, kind=None, max_force=None, type=None):
 
 
 def start_arena_once(num, kind=None, max_force=None, type=None):
-    assert kind in (None, "food", "ticket")
-    logger.info("start arena #%d", num)
-    context = {"played": 0}
-    while 1:
-        try:
-            goto_arena(kind)
-            finished = run_arena(max_force=max_force, type=type, context=context)
-            if finished:
-                break
-        except Exception:
-            logger.exception("Got unwanted exception, will retry")
-            time.sleep(2)
-
+    try:
+        assert kind in (None, "food", "ticket")
+        logger.info("start arena #%d", num)
+        context = {"played": 0}
+        while 1:
+            try:
+                goto_arena(kind)
+                finished = run_arena(max_force=max_force, type=type, context=context)
+                if finished:
+                    break
+            except Exception:
+                logger.exception("Got unwanted exception, will retry")
+                time.sleep(2)
+    finally:
+        logger.info("stop arena #%d", num)
     return context["played"]
 
 
@@ -348,7 +359,7 @@ def goto_arena(kind=None, *, loop):
         return
 
     if loop.find("arena/dialog/search"):
-        logger.info("still searching", extra={"rate": 1})
+        logger.info("still searching", extra={"rate": 1/5})
         loop.retry(False)
 
     if loop.find("arena/dialog/opened"):

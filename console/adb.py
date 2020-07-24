@@ -99,7 +99,7 @@ def enable_tunnel():
         "-s",
         config.get("adb:device"),
         "forward",
-        f"tcp:{settings.LOCAL_PORT}",
+        f"tcp:{settings.SERVER_PORT}",
         f"localabstract:{settings.ADB_SOCKET_NAME}"
     ])
 
@@ -145,8 +145,6 @@ def execute_server():
 def execute_scrshare():
     args = [
         "scrshare",
-        "-p",
-        f"{settings.LOCAL_PORT}",
         "-i",
         f"{settings.SCRSHARE_RENDER_INTERVAL}",
         "-l",
@@ -158,7 +156,7 @@ def execute_scrshare():
     # второе - это контроль
     # и вот тут надо ждать, пока scrshare не приконнектится первым, иначе пиздос
     # scrshare специально логирует @socket_connected
-    log_out_before_stop_word(process, "scrshare", "@socket_connected")
+    log_out_before_stop_word(process, "scrshare", "@video_server_connected")
     ProcessWatch(process=process, name="scrshare", daemon=True).start()
     return process
 

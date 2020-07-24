@@ -5,10 +5,10 @@ import cv2
 import time
 from datetime import datetime
 import settings
+from console import __version__
 
-version = "1.6.8"
 
-print("Robot v%s" % version)
+print("Robot v%s" % __version__)
 print()
 
 from console.logging import setup_logging

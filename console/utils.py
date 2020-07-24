@@ -207,7 +207,7 @@ def wait(
                 trace.trace("<timeout>", sample, match, trace_frame=trace_frame)
             return match
         if logger and tm - time.time() > 2.:
-            logger.info("waiting [%s]", target_names, extra={"rate": 1/2})
+            logger.info("waiting [%s]", target_names, extra={"rate": 1/5})
         client.new_sample()
 
 
@@ -232,7 +232,7 @@ def wait_while(
             match = templates[t].find(sample=sample, threshold=threshold)
             if match:
                 if logger and tm - time.time() > 2.:
-                    logger.info("still can find [%s]", match, extra={"rate": 1 / 2})
+                    logger.info("still can find [%s]", match, extra={"rate": 1/5})
                 break
         else:
             if can_trace:
@@ -379,7 +379,7 @@ def resample_loop(min_timeout=0, logger=None, force_resample=False):
                     return fn(*args, **kwargs, loop=loop_obj)
                 except Retry as e:
                     if logger and e.log_retry:
-                        logger.info("resample and retry", extra={"rate": 1/1.})
+                        logger.info("resample and retry", extra={"rate": 1/5})
                     kwargs.update(e.kwargs or {})
                 loop_obj.new_sample()
         return loop

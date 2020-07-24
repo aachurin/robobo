@@ -38,7 +38,16 @@ class RateLimitingFilter(logging.Filter):
         return True
 
 
-def setup_logging():
+def setup_logging(handler="logging.StreamHandler", params=None, format=None):
+    format = format or "%(asctime)s [%(name)s] %(message)s"
+    params = params or {}
+    handler = {
+        "level": "INFO",
+        "formatter": "default",
+        "class": handler,
+        "filters": ["rate_limit"]
+    }
+    handler.update(params)
     logging.config.dictConfig({
         "version": 1,
         "disable_existing_loggers": True,
@@ -48,26 +57,21 @@ def setup_logging():
             },
         },
         "formatters": {
-            "standard": {
-                "format": "%(asctime)s [%(name)s] %(message)s"
+            "default": {
+                "format": format
             }
         },
         "handlers": {
-            "console": {
-                "level": "INFO",
-                "formatter": "standard",
-                "class": "logging.StreamHandler",
-                "filters": ["rate_limit"]
-            },
+            "default": handler
         },
         "root": {
-            "handlers": ["console"],
+            "handlers": ["default"],
             "level": "INFO",
             "propagate": False
         },
         "loggers": {
             "console": {
-                "handlers": ["console"],
+                "handlers": ["default"],
                 "level": "INFO",
                 "propagate": False
             }

@@ -1,15 +1,13 @@
 import time
-import posix_ipc
 import socket
-import mmap
 import random
 import logging
-import threading
 import struct
 import numpy as np
 import settings
 from console.config import config
 from console.exceptions import ConsoleException
+from console import threads
 
 
 __all__ = (
@@ -80,35 +78,33 @@ def pack_mouse_event(action, buttons, x, y):
 
 
 class Client:
-    video_buffer_name = settings.SCRSHARE_VIDEO_BUFFER_NAME
-    video_lock_name = settings.SCRSHARE_VIDEO_LOCK_NAME
-    local_port = settings.LOCAL_PORT
-    socket = None
-    video = None
-    video_lock = None
-    sample = None
-    sample_key = 0
+    server_port = settings.SERVER_PORT
+    receiver_port = settings.RECEIVER_PORT
+    _sample = None
+    _sample_key = None
+    _control_socket = None
+    _receiver_socket = None
+    _videobuff = None
     _connected = False
 
-    def connect(self, timeout=1.):
+    def connect(self, timeout=3.):
         if self._connected:
             raise ClientConnectedException("Already connected")
-        self.socket = socket.socket()
-        self.socket.connect(("127.0.0.1", self.local_port))
+        self._thead_container = threads.ThreadContainer()
+        self._sample = None
+        self._sample_key = None
+        self._receiver_socket = socket.socket()
+        self._thead_container.run(self.video_receiver)
+        self._control_socket = socket.socket()
+        self._control_socket.connect(("127.0.0.1", self.server_port))
+        self._thead_container.run(self.control_receiver)
         time.sleep(timeout)
-        memory = posix_ipc.SharedMemory(self.video_buffer_name)
-        self.video = mmap.mmap(memory.fd, memory.size)
-        memory.close_fd()
-        self.video_lock = posix_ipc.Semaphore(self.video_lock_name)
-        self.sample = None
-        self.sample_key = 0
         self._connected = True
         try:
             self._check_sample_size()
         except ClientException:
             self.close()
             raise
-        threading.Thread(target=self.run_receiver, daemon=True).start()
         return True
 
     @property
@@ -128,65 +124,105 @@ class Client:
 
     def close(self):
         if self._connected:
+            self._thead_container.close()
+            self._thead_container = None
             try:
-                self.socket.shutdown(socket.SHUT_RDWR)
+                self._control_socket.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-            self.socket.close()
-            self.video.close()
-            self.video_lock.close()
-            self.socket = None
-            self.video = None
-            self.video_lock = None
+            try:
+                self._receiver_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            self._control_socket.close()
+            self._receiver_socket.close()
+            self._control_socket = None
+            self._receiver_socket = None
             self._connected = False
 
     def __del__(self):
         self.close()
 
-    def run_receiver(self):
+    def video_receiver(self):
+        logger.info("Video receiver started.")
+        self._receiver_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._receiver_socket.bind(("127.0.0.1", self.receiver_port))
+        self._receiver_socket.listen()
+        conn, addr = self._receiver_socket.accept()
+
+        def recvall(sock, n):
+            # Helper function to recv n bytes or return None if EOF is hit
+            data = bytearray()
+            while len(data) < n:
+                packet = sock.recv(n - len(data))
+                if not packet:
+                    return None
+                data.extend(packet)
+            return data
+
+        with conn:
+            logger.info("Video receiver connected to %s", addr)
+            key = 0
+            while True:
+                frame_info = recvall(conn, 12)
+                if not frame_info:
+                    break
+                size, width, height = np.frombuffer(frame_info, dtype=np.uint32)
+                data = recvall(conn, size.item())
+                if not data:
+                    break
+                key += 1
+                self._videobuff = (key, width.item(), height.item(), data)
+
+        logger.info("Video receiver stopped.")
+
+    def control_receiver(self):
         device_msg_serialized_max_size = 4096
-        logger.info("Receiver started.")
+        logger.info("Control receiver started.")
         while 1:
-            data = self.socket.recv(device_msg_serialized_max_size)
+            data = self._control_socket.recv(device_msg_serialized_max_size)
             if not data:
                 break
-        logger.info("Receiver stopped.")
+        logger.info("Control receiver stopped.")
 
     def ensure_connected(self):
         if not self._connected:
             raise ClientNotConnectedException("Not connected")
 
+    @property
+    def videobuf(self):
+        if self._connected:
+            return self._videobuff
+
     def get_sample(self):
         self.ensure_connected()
-        video = self.video
-        video.seek(0)
-        with self.video_lock:
-            key, width, height = np.frombuffer(video.read(12), dtype=np.uint32)
-            if (height, width) != (settings.SCREEN_HEIGHT, settings.SCREEN_WIDTH):
-                logger.error("Invalid frame size.")
-            elif key != self.sample_key:
-                sample = np.frombuffer(video.read(width * height), dtype=np.uint8)
-                sample = sample.reshape((height, width))
-                self.sample = sample
-                self.sample_key = key
-        return self.sample
+        key, width, height, data = self._videobuff
+        # key, width, height = np.frombuffer(video.read(12), dtype=np.uint32)
+        if (height, width) != (settings.SCREEN_HEIGHT, settings.SCREEN_WIDTH):
+            logger.error("Invalid frame size.")
+        elif key != self._sample_key:
+            sample = np.frombuffer(data, dtype=np.uint8)
+            sample = sample.reshape((height, width))
+            self._sample = sample
+            self._sample_key = key
+        return self._sample
 
     def new_sample(self):
-        cur_key = self.sample_key
+        cur_key = self._sample_key
         sample = self.get_sample()
-        while cur_key == self.sample_key:
+        while cur_key == self._sample_key:
             time.sleep(settings.SCRSHARE_RENDER_INTERVAL / 1000.)
             sample = self.get_sample()
         return sample
 
     def mouse_down(self, x, y):
-        self.socket.send(pack_mouse_event(MouseAcion.DOWN, MouseButton.PRIMARY, x, y))
+        self._control_socket.send(pack_mouse_event(MouseAcion.DOWN, MouseButton.PRIMARY, x, y))
 
     def mouse_up(self, x, y):
-        self.socket.send(pack_mouse_event(MouseAcion.UP, MouseButton.PRIMARY, x, y))
+        self._control_socket.send(pack_mouse_event(MouseAcion.UP, MouseButton.PRIMARY, x, y))
 
     def mouse_move(self, x, y):
-        self.socket.send(pack_mouse_event(MouseAcion.MOVE, MouseButton.PRIMARY, x, y))
+        self._control_socket.send(pack_mouse_event(MouseAcion.MOVE, MouseButton.PRIMARY, x, y))
 
     def click(self, x, y, rand_x=None, rand_y=None):
         if rand_x:
@@ -196,7 +232,7 @@ class Client:
         self.mouse_down(x, y)
         time.sleep(config.get("client:click-timeout"))
         self.mouse_up(x, y)
-        return (x, y)
+        return x, y
 
     def move(self, x1, y1, x2, y2):
         c = 8
